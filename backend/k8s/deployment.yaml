@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: productivity-deployment
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: productivity-app
+
+  template:
+    metadata:
+      labels:
+        app: productivity-app
+
+    spec:
+      containers:
+      - name: productivity-container
+        image: productivity-backend
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 8000
