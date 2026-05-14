@@ -36,6 +36,6 @@ jobs:
             sudo docker stop tracker || true
             sudo docker rm tracker || true
 
-            sudo docker build -t tracker .
+            sudo docker build -t tracker -f backend/Dockerfile ./backend
 
             sudo docker run -d --name tracker -p 80:3000 tracker
