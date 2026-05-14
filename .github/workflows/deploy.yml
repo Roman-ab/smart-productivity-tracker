@@ -1,4 +1,4 @@
-name: Deploy App
+name: Deploy to ECR and EC2
 
 on:
   push:
@@ -11,31 +11,45 @@ jobs:
 
     steps:
 
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@master
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
-          script: |
-            cd /home/ubuntu
+    - name: Build Docker image
+      run: |
+        docker build -t tracker -f backend/Dockerfile ./backend
 
-            if [ ! -d "smart-productivity-tracker" ]; then
-              git clone https://github.com/Roman-ab/smart-productivity-tracker.git
-            fi
+    - name: Tag image
+      run: |
+        docker tag tracker:latest ${{ steps.login-ecr.outputs.registry }}/tracker:latest
 
-            cd smart-productivity-tracker
+    - name: Push image to ECR
+      run: |
+        docker push ${{ steps.login-ecr.outputs.registry }}/tracker:latest
 
-            git pull origin main
+    - name: Deploy on EC2
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
 
-            sudo docker stop tracker || true
-            sudo docker rm tracker || true
+        script: |
+          aws ecr get-login-password --region ap-south-1 | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
 
-            sudo docker build -t tracker -f backend/Dockerfile ./backend
+          sudo docker stop tracker || true
+          sudo docker rm tracker || true
 
-            sudo docker run -d --restart unless-stopped --name tracker -p 80:8000 tracker
+          sudo docker pull ${{ steps.login-ecr.outputs.registry }}/tracker:latest
+
+          sudo docker run -d --restart unless-stopped --name tracker -p 80:8000 ${{ steps.login-ecr.outputs.registry }}/tracker:latest
