@@ -38,4 +38,4 @@ jobs:
 
             sudo docker build -t tracker -f backend/Dockerfile ./backend
 
-            sudo docker run -d --name tracker -p 80:8000 tracker
+            sudo docker run -d --restart unless-stopped --name tracker -p 80:8000 tracker
