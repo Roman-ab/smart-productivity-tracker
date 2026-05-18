@@ -1,11 +1,11 @@
-From Python 3.14.5
+FROM python:3.14.5-slim
 
 WORKDIR /app
 
 COPY . . 
 
-RUN PIP install -r requirement.txt
+RUN pip install -r requirements.txt
 
 EXPOSE 8000
 
-CMD ["run main.py"]
+CMD ["python" "main.py"]
