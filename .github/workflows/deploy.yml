@@ -1,0 +1,33 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4-
+
+
+     -  name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+
+          script: |
+           cd /home/ubuntu/smart-productivity-tracker
+           git pull
+
+           sudo docker stop tracker || true
+           sudo docker rm tracker || true
+
+           sudo docker build -t tracker -f backend/Dockerfile ./backend
+
+           sudo docker run -d --name tracker -p 80:8000 tracker
