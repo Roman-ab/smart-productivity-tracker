@@ -10,24 +10,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4-
 
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-     -  name: Deploy to EC2
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@master
+
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
 
           script: |
-           cd /home/ubuntu/smart-productivity-tracker
-           git pull
+            cd /home/ubuntu
 
-           sudo docker stop tracker || true
-           sudo docker rm tracker || true
+            if [ ! -d "smart-productivity-tracker" ]; then
+              git clone https://github.com/Roman-ab/smart-productivity-tracker.git
+            fi
 
-           sudo docker build -t tracker -f backend/Dockerfile ./backend
+            cd smart-productivity-tracker
 
-           sudo docker run -d --name tracker -p 80:8000 tracker
+            git pull origin main
+
+            sudo docker stop tracker || true
+            sudo docker rm tracker || true
+
+            sudo docker build -t tracker -f backend/Dockerfile ./backend
+
+            sudo docker run -d --name tracker -p 80:8000 tracker
