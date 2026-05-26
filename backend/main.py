@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 from app.database.connection import engine, Base
 from app.routes.user import router as user_router
 from app.models import user
@@ -14,3 +15,6 @@ app.include_router(task_router)
 @app.get("/")
 def read_root():
     return {"message": "Backend is running successfully"}
+    
+# Add this
+Instrumentator().instrument(app).expose(app)
