@@ -29,3 +29,8 @@ def read_root():
  #   return {
   #      "status": "healthy"
    # }
+from app.database import Base, engine
+
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
