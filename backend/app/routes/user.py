@@ -1,13 +1,17 @@
-from app.auth import create_access_token
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
+from jose import JWTError, jwt
 
 from app.database.connection import SessionLocal
 from app.models.user import User
 from app.security import hash_password, verify_password
+from app.auth import create_access_token, SECRET_KEY, ALGORITHM
+from pydantic import BaseModel
 
 router = APIRouter()
 
+
+# ---------------- DB Dependency ----------------
 def get_db():
     db = SessionLocal()
     try:
@@ -15,74 +19,65 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/register")
-def register_user(
-    username: str,
-    email: str,
-    password: str,
-    db: Session = Depends(get_db)
-):
-    hashed_password = hash_password(password)
 
-    user = User(
-        username=username,
-        email=email,
+# ---------------- Pydantic Schema ----------------
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+# ---------------- REGISTER ----------------
+@router.post("/register")
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+
+    hashed_password = hash_password(user.password)
+
+    new_user = User(
+        username=user.username,
+        email=user.email,
         password=hashed_password
     )
 
-    db.add(user)
+    db.add(new_user)
     db.commit()
-    db.refresh(user)
+    db.refresh(new_user)
 
-    return {"message": "User registered successfully"}
+    return {
+        "message": "User registered successfully",
+        "user_id": new_user.id
+    }
 
 
+# ---------------- LOGIN ----------------
 @router.post("/login")
-def login_user(
-    username: str,
-    password: str,
-    db: Session = Depends(get_db)
-):
-    user = db.query(User).filter(
-        User.username == username
-    ).first()
+def login_user(user: UserCreate, db: Session = Depends(get_db)):
 
-    if not user:
+    db_user = db.query(User).filter(User.username == user.username).first()
+
+    if not db_user:
         return {"error": "User not found"}
 
-    if not verify_password(
-        password,
-        user.password
-    ):
+    if not verify_password(user.password, db_user.password):
         return {"error": "Incorrect password"}
 
-    access_token = create_access_token(
-        data={"sub": user.username}
-    )
+    token = create_access_token(data={"sub": db_user.username})
 
     return {
         "message": "Login successful",
-        "access_token": access_token
+        "access_token": token
     }
-from fastapi import Header
-from jose import JWTError, jwt
-from app.auth import SECRET_KEY, ALGORITHM
 
 
+# ---------------- DASHBOARD (PROTECTED) ----------------
 @router.get("/dashboard")
 def dashboard(token: str = Header(...)):
-    try:
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM]
-        )
 
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
 
-        return {
-            "message": f"Welcome {username}"
-        }
+        return {"message": f"Welcome {username}"}
 
     except JWTError:
         return {"error": "Invalid token"}
