@@ -7,6 +7,8 @@ from app.models.user import User
 from app.security import hash_password, verify_password
 from app.auth import create_access_token, SECRET_KEY, ALGORITHM
 from pydantic import BaseModel
+import json
+from app.redis_client import r
 
 router = APIRouter()
 
@@ -53,6 +55,17 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login")
 def login_user(user: UserCreate, db: Session = Depends(get_db)):
 
+    cache_key = f"user:{user.username}"
+
+    # 1. CHECK CACHE FIRST
+    cached_user = r.get(cache_key)
+    if cached_user:
+        return {
+            "message": "Login successful (cache)",
+            "data": json.loads(cached_user)
+        }
+
+    # 2. DB fallback
     db_user = db.query(User).filter(User.username == user.username).first()
 
     if not db_user:
@@ -61,6 +74,17 @@ def login_user(user: UserCreate, db: Session = Depends(get_db)):
     if not verify_password(user.password, db_user.password):
         return {"error": "Incorrect password"}
 
+    # 3. STORE IN CACHE (TTL = 5 min)
+    r.setex(
+        cache_key,
+        300,
+        json.dumps({
+            "id": db_user.id,
+            "username": db_user.username,
+            "email": db_user.email
+        })
+    )
+
     token = create_access_token(data={"sub": db_user.username})
 
     return {
@@ -68,16 +92,37 @@ def login_user(user: UserCreate, db: Session = Depends(get_db)):
         "access_token": token
     }
 
-
 # ---------------- DASHBOARD (PROTECTED) ----------------
 @router.get("/dashboard")
-def dashboard(token: str = Header(...)):
+def dashboard(token: str = Header(...), db: Session = Depends(get_db)):
 
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get("sub")
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    username = payload.get("sub")
 
-        return {"message": f"Welcome {username}"}
+    cache_key = f"dashboard:{username}"
 
-    except JWTError:
-        return {"error": "Invalid token"}
+    # 1. Check Redis first
+    cached = r.get(cache_key)
+    if cached:
+        return {
+            "source": "cache",
+            "data": json.loads(cached)
+        }
+
+    # 2. DB fallback (if needed)
+    user = db.query(User).filter(User.username == username).first()
+
+    data = {
+        "username": user.username,
+        "email": user.email
+    }
+
+    # 3. Store cache (10 min)
+    r.setex(cache_key, 600, json.dumps(data))
+
+    return {
+        "source": "database",
+        "data": data
+    }
+    r.delete(f"dashboard:{username}")
+    r.delete(f"user:{username}")
