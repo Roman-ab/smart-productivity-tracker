@@ -1,7 +1,11 @@
+import os
 import redis
+from dotenv import load_dotenv
+
+load_dotenv()
 
 r = redis.Redis(
-    host="localhost",
-    port=6379,
+    host=os.getenv("REDIS_HOST"),
+    port=os.getenv("REDIS_PORT"),
     decode_responses=True
 )

@@ -23,3 +23,9 @@ def read_root():
 app.include_router(user_router)
 app.include_router(task_router)
   
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "smart-productivity-tracker"
+    }
