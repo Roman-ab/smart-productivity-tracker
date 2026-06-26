@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+
+  backend:
+    build: .
+    container_name: productivity_backend
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      - redis
+
+    env_file:
+      - .env
+
+  redis:
+    image: redis:7
+    container_name: redis_cache
